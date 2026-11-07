@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "tn.esprit.fittrack_ai"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

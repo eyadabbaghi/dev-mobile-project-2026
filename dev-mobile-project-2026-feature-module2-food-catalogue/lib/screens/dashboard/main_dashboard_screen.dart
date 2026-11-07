@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../events/models/sport_event.dart';
+import '../../events/screens/events_screen.dart';
 import '../../services/auth_service.dart';
 import '../catalog/food_catalog_screen.dart';
 import 'user_dashboard_screen.dart';
@@ -17,19 +20,29 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    final user = widget.authService.currentUser!;
     _screens = [
-      FoodCatalogScreen(currentUserId: widget.authService.currentUser!.id),
+      FoodCatalogScreen(currentUserId: user.id),
       UserDashboardScreen(authService: widget.authService),
+      EventsScreen(
+        user: EventUser(
+          id: user.id,
+          name: '${user.firstName} ${user.lastName}',
+          city: 'Tunis',
+          latitude: 36.8065,
+          longitude: 10.1815,
+          activityLevel: user.activityLevel ?? 'Non renseigné',
+          goals: const [],
+          interests: const [],
+        ),
+      ),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (idx) => setState(() => _currentIndex = idx),
@@ -37,8 +50,12 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         unselectedItemColor: Colors.grey,
         backgroundColor: Theme.of(context).colorScheme.surface,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.restaurant_menu), label: 'Catalogue'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.restaurant_menu),
+            label: 'Catalogue',
+          ),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Événements'),
         ],
       ),
     );
