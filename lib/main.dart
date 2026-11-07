@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'events/screens/events_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +37,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     Center(child: Text('Module 1 : Profil & Objectifs')),
     Center(child: Text('Module 2 : Catalogue Produits')),
     Center(child: Text('Module 3 : Journal Repas & Hydratation')),
-    Center(child: Text('Module 4 : Événements Sport & Santé')),
+    EventsScreen(),
     Center(child: Text('Module 5 : Communauté & Publications')),
   ];
 
