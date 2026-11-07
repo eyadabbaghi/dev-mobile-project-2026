@@ -46,3 +46,18 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local tooling, generated artifacts, credentials and signing files
+.tmp/
+output/
+.codex/
+.agents/
+.aws/
+.env
+.env.*
+!.env.example
+*.apk
+*.aab
+*.jks
+*.keystore
+**/key.properties

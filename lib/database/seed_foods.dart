@@ -1,0 +1,58 @@
+final DateTime _seededAt = DateTime.utc(2026, 1, 1);
+
+final List<Map<String, Object?>> builtInFoods = [
+  _food('builtin-apple', 'Pomme', 'fruitsVegetables', 52, 0.3, 13.8, 0.2),
+  _food('builtin-banana', 'Banane', 'fruitsVegetables', 89, 1.1, 22.8, 0.3),
+  _food('builtin-avocado', 'Avocat', 'fruitsVegetables', 160, 2, 8.5, 14.7),
+  _food('builtin-broccoli', 'Brocoli', 'fruitsVegetables', 34, 2.8, 6.6, 0.4),
+  _food('builtin-oats', 'Flocons d’avoine', 'cereals', 389, 16.9, 66.3, 6.9),
+  _food('builtin-rice', 'Riz complet cuit', 'cereals', 123, 2.7, 25.6, 1),
+  _food('builtin-chicken', 'Blanc de poulet cuit', 'proteins', 165, 31, 0, 3.6),
+  _food('builtin-salmon', 'Saumon cuit', 'proteins', 206, 22.1, 0, 12.4),
+  _food('builtin-egg', 'Œuf entier', 'proteins', 143, 12.6, 0.7, 9.5),
+  _food('builtin-yogurt', 'Yaourt nature', 'dairy', 61, 3.5, 4.7, 3.3),
+  _food('builtin-lentils', 'Lentilles cuites', 'proteins', 116, 9, 20.1, 0.4),
+  _food('builtin-olive-oil', 'Huile d’olive', 'fats', 884, 0, 0, 100),
+  _food(
+    'builtin-orange-juice',
+    'Jus d’orange',
+    'beverages',
+    45,
+    0.7,
+    10.4,
+    0.2,
+    unit: 'milliliter',
+    portion: '100 ml',
+  ),
+  _food('builtin-almonds', 'Amandes', 'snacks', 579, 21.2, 21.6, 49.9),
+  _food('builtin-cottage-cheese', 'Fromage blanc', 'dairy', 72, 8, 4, 2),
+];
+
+Map<String, Object?> _food(
+  String id,
+  String name,
+  String category,
+  double calories,
+  double protein,
+  double carbohydrates,
+  double fat, {
+  String unit = 'gram',
+  String portion = '100 g',
+}) => {
+  'id': id,
+  'name': name,
+  'brand': '',
+  'category': category,
+  'reference_portion': portion,
+  'unit': unit,
+  'calories_per_100': calories,
+  'protein_per_100': protein,
+  'carbohydrate_per_100': carbohydrates,
+  'fat_per_100': fat,
+  'owner_id': null,
+  'barcode': null,
+  'is_builtin': 1,
+  'nutrition_is_complete': 1,
+  'created_at': _seededAt.toIso8601String(),
+  'updated_at': _seededAt.toIso8601String(),
+};
