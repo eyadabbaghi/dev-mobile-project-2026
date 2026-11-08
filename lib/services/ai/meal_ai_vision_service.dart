@@ -42,14 +42,17 @@ class MealAiVisionService {
     final effectiveApiKey = await getResolvedApiKey(apiKey);
 
     if (effectiveApiKey.isNotEmpty) {
-      try {
-        final model = GenerativeModel(
-          model: 'gemini-1.5-flash',
-          apiKey: effectiveApiKey,
-        );
+      final candidateModels = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-2.0-flash-exp',
+        'gemini-1.5-pro',
+        'gemini-1.5-flash',
+      ];
 
-        final imageBytes = await imageFile.readAsBytes();
-        final prompt = '''
+      final imageBytes = await imageFile.readAsBytes();
+      final prompt = '''
 Analyse cette photo de repas. Détecte chaque composant ou aliment visible sur l'image.
 Pour chaque aliment, estime la portion (en g ou ml), les calories, protéines (g), glucides (g) et lipides (g).
 Réponds STRICTEMENT sous forme d'un JSON valide au format suivant sans aucun texte autour :
@@ -67,40 +70,48 @@ Réponds STRICTEMENT sous forme d'un JSON valide au format suivant sans aucun te
 ]
 ''';
 
-        final content = [
-          Content.multi([
-            TextPart(prompt),
-            DataPart('image/jpeg', imageBytes),
-          ])
-        ];
+      final content = [
+        Content.multi([
+          TextPart(prompt),
+          DataPart('image/jpeg', imageBytes),
+        ])
+      ];
 
-        final response = await model.generateContent(content);
-        final responseText = response.text?.trim() ?? '';
+      for (final modelName in candidateModels) {
+        try {
+          final model = GenerativeModel(
+            model: modelName,
+            apiKey: effectiveApiKey,
+          );
 
-        if (responseText.isNotEmpty) {
-          final cleanJson = _extractJsonArray(responseText);
-          final List<dynamic> jsonList = jsonDecode(cleanJson);
+          final response = await model.generateContent(content);
+          final responseText = response.text?.trim() ?? '';
 
-          return jsonList.map((item) {
-            final map = item as Map<String, dynamic>;
-            final unitStr = map['unit'] as String? ?? 'gram';
-            return MealFoodEntry(
-              userId: userId,
-              foodName: map['foodName'] as String? ?? 'Aliment détecté',
-              brand: map['brand'] as String? ?? 'Détecté par IA',
-              amount: (map['amount'] as num?)?.toDouble() ?? 100.0,
-              unit: FoodUnitLabel.fromStorage(unitStr),
-              calories: (map['calories'] as num?)?.toDouble() ?? 150.0,
-              proteinGrams: (map['proteinGrams'] as num?)?.toDouble() ?? 10.0,
-              carbohydrateGrams: (map['carbohydrateGrams'] as num?)?.toDouble() ?? 15.0,
-              fatGrams: (map['fatGrams'] as num?)?.toDouble() ?? 5.0,
-              mealSlot: mealSlot,
-              consumedAt: DateTime.now(),
-            );
-          }).toList();
+          if (responseText.isNotEmpty) {
+            final cleanJson = _extractJsonArray(responseText);
+            final List<dynamic> jsonList = jsonDecode(cleanJson);
+
+            return jsonList.map((item) {
+              final map = item as Map<String, dynamic>;
+              final unitStr = map['unit'] as String? ?? 'gram';
+              return MealFoodEntry(
+                userId: userId,
+                foodName: map['foodName'] as String? ?? 'Aliment détecté',
+                brand: map['brand'] as String? ?? 'Détecté par IA',
+                amount: (map['amount'] as num?)?.toDouble() ?? 100.0,
+                unit: FoodUnitLabel.fromStorage(unitStr),
+                calories: (map['calories'] as num?)?.toDouble() ?? 150.0,
+                proteinGrams: (map['proteinGrams'] as num?)?.toDouble() ?? 10.0,
+                carbohydrateGrams: (map['carbohydrateGrams'] as num?)?.toDouble() ?? 15.0,
+                fatGrams: (map['fatGrams'] as num?)?.toDouble() ?? 5.0,
+                mealSlot: mealSlot,
+                consumedAt: DateTime.now(),
+              );
+            }).toList();
+          }
+        } catch (e) {
+          debugPrint('MealAiVisionService model $modelName failed: $e');
         }
-      } catch (e) {
-        debugPrint('MealAiVisionService Gemini Vision Error: $e');
       }
     }
 
