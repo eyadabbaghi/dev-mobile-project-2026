@@ -16,7 +16,7 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
     afterEvaluate {
         if (plugins.hasPlugin("com.android.library")) {
-            extensions.configure<com.android.build.gradle.LibraryExtension> {
+            extensions.configure<com.android.build.api.dsl.LibraryExtension> {
                 compileSdk = 36
             }
         }
