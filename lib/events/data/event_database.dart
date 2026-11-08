@@ -1,8 +1,6 @@
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
-import 'demo_event_data.dart';
-
 /// Ouvre la base SQLite locale du module Événements (une seule instance).
 class EventDatabase {
   EventDatabase._();
@@ -13,7 +11,7 @@ class EventDatabase {
   static String? pathOverride;
 
   static const _fileName = 'fittrack_events.db';
-  static const _version = 2;
+  static const _version = 3;
 
   Future<Database>? _opening;
 
@@ -63,39 +61,24 @@ class EventDatabase {
         UNIQUE (event_id, user_id)
       )
     ''');
-
-    await _seedDemoData(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE events ADD COLUMN image_path TEXT');
     }
-  }
 
-  /// Insère les 4 événements de démo à la toute première création de la base.
-  Future<void> _seedDemoData(Database db) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final batch = db.batch();
-    for (final event in createDemoEvents()) {
-      batch.insert('events', event.toMap());
-      for (final userId in event.attendeeIds) {
-        batch.insert('event_registrations', {
-          'event_id': event.id,
-          'user_id': userId,
-          'status': 'CONFIRMED',
-          'registered_at': now,
-        });
-      }
-      for (final userId in event.waitlistIds) {
-        batch.insert('event_registrations', {
-          'event_id': event.id,
-          'user_id': userId,
-          'status': 'WAITING_LIST',
-          'registered_at': now,
-        });
-      }
+    if (oldVersion < 3) {
+      await db.delete(
+        'events',
+        where: 'id IN (?, ?, ?, ?)',
+        whereArgs: [
+          'demo-running',
+          'demo-nutrition',
+          'demo-mobility',
+          'demo-strength',
+        ],
+      );
     }
-    await batch.commit(noResult: true);
   }
 }

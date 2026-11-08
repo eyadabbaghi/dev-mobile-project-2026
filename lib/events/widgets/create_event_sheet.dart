@@ -3,13 +3,17 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../data/demo_event_data.dart';
+import '../data/event_location_data.dart';
 import '../models/sport_event.dart';
 import '../utils/event_formatters.dart';
+import 'event_location_picker.dart';
 
 class CreateEventSheet extends StatefulWidget {
-  const CreateEventSheet({super.key});
+  const CreateEventSheet({required this.user, super.key});
+
+  final EventUser user;
 
   @override
   State<CreateEventSheet> createState() => _CreateEventSheetState();
@@ -19,15 +23,22 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
   final _formKey = GlobalKey<FormState>();
   final _title = TextEditingController();
   final _description = TextEditingController();
-  final _city = TextEditingController(text: currentDemoUser.city);
+  late final TextEditingController _city;
   final _location = TextEditingController();
   final _price = TextEditingController(text: '0');
   final _capacity = TextEditingController(text: '10');
   final _imagePicker = ImagePicker();
   XFile? _pickedImage;
+  LatLng? _selectedCoordinates;
   EventCategory _category = EventCategory.sport;
   EventMode _mode = EventMode.inPerson;
   DateTime _dateTime = DateTime.now().add(const Duration(days: 1));
+
+  @override
+  void initState() {
+    super.initState();
+    _city = TextEditingController(text: widget.user.city);
+  }
 
   @override
   void dispose() {
@@ -135,12 +146,31 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
               controller: _city,
               decoration: const InputDecoration(labelText: 'Ville'),
               validator: _required,
+              onChanged: (_) => setState(() => _selectedCoordinates = null),
             ),
             TextFormField(
               controller: _location,
               decoration: const InputDecoration(labelText: 'Adresse ou lien'),
               validator: _required,
             ),
+            if (_mode != EventMode.online) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _pickMapLocation,
+                icon: const Icon(Icons.map_outlined),
+                label: Text(
+                  _selectedCoordinates == null
+                      ? 'Choisir le point sur la carte'
+                      : 'Lieu sélectionné sur la carte',
+                ),
+              ),
+              if (_selectedCoordinates != null)
+                Text(
+                  '${_selectedCoordinates!.latitude.toStringAsFixed(5)}, '
+                  '${_selectedCoordinates!.longitude.toStringAsFixed(5)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+            ],
             const SizedBox(height: 8),
             OutlinedButton.icon(
               onPressed: _pickDateTime,
@@ -236,12 +266,41 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
     );
   }
 
+  Future<void> _pickMapLocation() async {
+    final cityCoordinates = eventCoordinatesForCity(_city.text);
+    final cityPoint = cityCoordinates == null
+        ? null
+        : LatLng(cityCoordinates.$1, cityCoordinates.$2);
+    final initialPoint =
+        _selectedCoordinates ??
+        cityPoint ??
+        LatLng(widget.user.latitude, widget.user.longitude);
+    final selectedPoint = await showModalBottomSheet<LatLng>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => EventLocationPicker(initialPoint: initialPoint),
+    );
+    if (selectedPoint != null && mounted) {
+      setState(() => _selectedCoordinates = selectedPoint);
+    }
+  }
+
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
+    if (_mode != EventMode.online && _selectedCoordinates == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Choisis le point du lieu sur la carte avant de publier.',
+          ),
+        ),
+      );
+      return;
+    }
     final city = _city.text.trim();
-    final coordinates =
-        demoCityCoordinates[city] ??
-        (currentDemoUser.latitude, currentDemoUser.longitude);
+    final latitude = _selectedCoordinates?.latitude ?? widget.user.latitude;
+    final longitude = _selectedCoordinates?.longitude ?? widget.user.longitude;
     Navigator.pop(
       context,
       SportEvent(
@@ -256,10 +315,10 @@ class _CreateEventSheetState extends State<CreateEventSheet> {
         imagePath: _pickedImage?.path,
         price: double.parse(_price.text.replaceAll(',', '.')),
         capacity: int.parse(_capacity.text),
-        coachId: currentDemoUser.id,
-        coachName: currentDemoUser.name,
-        latitude: coordinates.$1,
-        longitude: coordinates.$2,
+        coachId: widget.user.id,
+        coachName: widget.user.name,
+        latitude: latitude,
+        longitude: longitude,
       ),
     );
   }

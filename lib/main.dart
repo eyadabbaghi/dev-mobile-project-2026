@@ -1,69 +1,40 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'events/screens/events_screen.dart';
+import 'package:sqflite/sqflite.dart' show databaseFactory;
+import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart' show databaseFactoryFfiWeb;
+import 'package:intl/date_symbol_data_local.dart';
 
-void main() {
+import 'screens/auth/splash_screen.dart';
+import 'services/auth_service.dart';
+import 'theme/fit_theme.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const FitTrackApp());
+  await initializeDateFormatting('fr_FR', null);
+  
+  if (kIsWeb) {
+    databaseFactory = databaseFactoryFfiWeb;
+  }
+  runApp(MyApp());
 }
 
-class FitTrackApp extends StatelessWidget {
-  const FitTrackApp({super.key});
+class FitTrackAiApp extends StatelessWidget {
+  final AuthService authService = AuthService();
+
+  FitTrackAiApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'FitTrack AI',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
-        useMaterial3: true,
-      ),
-      home: const MainNavigationScreen(),
+      theme: FitTheme.dark,
+      // Le module Auth devient le point d'entrée principal
+      home: SplashScreen(authService: authService),
     );
   }
 }
 
-class MainNavigationScreen extends StatefulWidget {
-  const MainNavigationScreen({super.key});
-
-  @override
-  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
-}
-
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _selectedIndex = 2; // Ouvre par défaut sur le Journal des Repas
-
-  final List<Widget> _screens = const [
-    Center(child: Text('Module 1 : Profil & Objectifs')),
-    Center(child: Text('Module 2 : Catalogue Produits')),
-    Center(child: Text('Module 3 : Journal Repas & Hydratation')),
-    EventsScreen(),
-    Center(child: Text('Module 5 : Communauté & Publications')),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('FitTrack AI', style: TextStyle(fontWeight: FontWeight.bold)),
-        centerTitle: true,
-      ),
-      body: _screens[_selectedIndex],
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: (int index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.person_outline), selectedIcon: Icon(Icons.person), label: 'Profil'),
-          NavigationDestination(icon: Icon(Icons.qr_code_scanner), selectedIcon: Icon(Icons.qr_code), label: 'Produits'),
-          NavigationDestination(icon: Icon(Icons.restaurant_menu), selectedIcon: Icon(Icons.restaurant), label: 'Journal'),
-          NavigationDestination(icon: Icon(Icons.event_outlined), selectedIcon: Icon(Icons.event), label: 'Événements'),
-          NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum), label: 'Communauté'),
-        ],
-      ),
-    );
-  }
+class MyApp extends FitTrackAiApp {
+  MyApp({super.key});
 }

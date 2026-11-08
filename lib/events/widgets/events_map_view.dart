@@ -23,13 +23,27 @@ class EventsMapView extends StatelessWidget {
     final mapEvents = events
         .where((event) => event.mode != EventMode.online)
         .toList();
+    final mapCoordinates = mapEvents
+        .map((event) => LatLng(event.latitude, event.longitude))
+        .toList();
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Stack(
         children: [
           FlutterMap(
-            options: MapOptions(initialCenter: center, initialZoom: 11),
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: 11,
+              initialCameraFit: mapCoordinates.isEmpty
+                  ? null
+                  : CameraFit.coordinates(
+                      coordinates: mapCoordinates,
+                      padding: const EdgeInsets.all(56),
+                      maxZoom: 13,
+                      minZoom: 5,
+                    ),
+            ),
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',

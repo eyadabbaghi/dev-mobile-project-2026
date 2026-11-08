@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:latlong2/latlong.dart';
 
-import '../data/demo_event_data.dart';
 import '../data/event_image_storage.dart';
 import '../data/event_recommender.dart';
 import '../data/event_repository.dart';
@@ -15,7 +14,9 @@ import '../widgets/event_details_sheet.dart';
 import '../widgets/events_map_view.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({super.key});
+  const EventsScreen({required this.user, super.key});
+
+  final EventUser user;
 
   @override
   State<EventsScreen> createState() => _EventsScreenState();
@@ -101,12 +102,12 @@ class _EventsScreenState extends State<EventsScreen> {
     try {
       final recommendations = await _recommender.recommend(
         profile: RecommendationProfile(
-          activityLevel: currentDemoUser.activityLevel,
-          goals: currentDemoUser.goals,
-          interests: currentDemoUser.interests
+          activityLevel: widget.user.activityLevel,
+          goals: widget.user.goals,
+          interests: widget.user.interests
               .map((interest) => interest.label)
               .toList(),
-          city: currentDemoUser.city,
+          city: widget.user.city,
         ),
         events: upcomingEvents,
       );
@@ -142,10 +143,11 @@ class _EventsScreenState extends State<EventsScreen> {
             .where((event) => event.dateTime.isAfter(DateTime.now()))
             .toList()
           ..sort((first, second) {
-            final firstMatches =
-                currentDemoUser.interests.contains(first.category) ? 0 : 1;
+            final firstMatches = widget.user.interests.contains(first.category)
+                ? 0
+                : 1;
             final secondMatches =
-                currentDemoUser.interests.contains(second.category) ? 0 : 1;
+                widget.user.interests.contains(second.category) ? 0 : 1;
             final interestOrder = firstMatches.compareTo(secondMatches);
             return interestOrder != 0
                 ? interestOrder
@@ -153,9 +155,7 @@ class _EventsScreenState extends State<EventsScreen> {
           });
 
     return upcomingEvents.take(3).map((event) {
-      final matchesInterest = currentDemoUser.interests.contains(
-        event.category,
-      );
+      final matchesInterest = widget.user.interests.contains(event.category);
       return EventRecommendation(
         event: event,
         reason: matchesInterest
@@ -207,12 +207,12 @@ class _EventsScreenState extends State<EventsScreen> {
                     ],
                   ),
                 ),
-                if (currentDemoUser.isCoach)
-                  IconButton.filledTonal(
-                    tooltip: 'Créer un événement',
-                    onPressed: _createEvent,
-                    icon: const Icon(Icons.add),
-                  ),
+                FilledButton.icon(
+                  key: const ValueKey('create-event-button'),
+                  onPressed: _createEvent,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Créer'),
+                ),
               ],
             ),
             const SizedBox(height: 12),
@@ -338,7 +338,7 @@ class _EventsScreenState extends State<EventsScreen> {
                 ),
                 Text(
                   _nearbyFirst
-                      ? 'Autour de ${currentDemoUser.city}'
+                      ? 'Autour de ${widget.user.city}'
                       : 'Trier par pertinence',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
@@ -354,8 +354,8 @@ class _EventsScreenState extends State<EventsScreen> {
                   ? EventsMapView(
                       events: events,
                       center: LatLng(
-                        currentDemoUser.latitude,
-                        currentDemoUser.longitude,
+                        widget.user.latitude,
+                        widget.user.longitude,
                       ),
                       isRecommended: _isRecommended,
                       onEventTap: _showEventDetails,
@@ -369,10 +369,15 @@ class _EventsScreenState extends State<EventsScreen> {
                             child: _recommendationSection(context, events),
                           ),
                         if (events.isEmpty)
-                          const SliverFillRemaining(
+                          SliverFillRemaining(
                             hasScrollBody: false,
                             child: Center(
-                              child: Text('Aucun événement pour ces filtres.'),
+                              child: Text(
+                                _events.isEmpty
+                                    ? 'Aucun événement pour le moment. Utilise « Créer » pour ajouter le premier.'
+                                    : 'Aucun événement pour ces filtres.',
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           )
                         else
@@ -578,11 +583,11 @@ class _EventsScreenState extends State<EventsScreen> {
       ? _recommendations.any(
           (recommendation) => recommendation.event.id == event.id,
         )
-      : currentDemoUser.interests.contains(event.category);
+      : widget.user.interests.contains(event.category);
 
   double _distanceTo(SportEvent event) => distanceKm(
-    currentDemoUser.latitude,
-    currentDemoUser.longitude,
+    widget.user.latitude,
+    widget.user.longitude,
     event.latitude,
     event.longitude,
   );
@@ -592,7 +597,7 @@ class _EventsScreenState extends State<EventsScreen> {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => const CreateEventSheet(),
+      builder: (_) => CreateEventSheet(user: widget.user),
     );
     if (event == null) return;
     try {
@@ -621,10 +626,27 @@ class _EventsScreenState extends State<EventsScreen> {
       isScrollControlled: true,
       useSafeArea: true,
       builder: (_) => EventDetailsSheet(
+        user: widget.user,
         event: event,
         onToggleRegistration: (target) =>
-            _repository.toggleRegistration(target, currentDemoUser.id),
+            _repository.toggleRegistration(target, widget.user.id),
         onCheckIn: _repository.setCheckedIn,
+        onUpdateLocation: (target, point) async {
+          final updatedEvent = await _repository.updateEventCoordinates(
+            target,
+            latitude: point.latitude,
+            longitude: point.longitude,
+          );
+          if (mounted) {
+            setState(() {
+              final index = _events.indexWhere(
+                (event) => event.id == updatedEvent.id,
+              );
+              if (index >= 0) _events[index] = updatedEvent;
+            });
+          }
+          return updatedEvent;
+        },
         onCancel: () async {
           await _repository.deleteEvent(event.id);
           if (mounted) setState(() => _events.remove(event));

@@ -1,27 +1,32 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../data/demo_event_data.dart';
 import '../models/sport_event.dart';
 import '../utils/event_formatters.dart';
+import 'event_location_picker.dart';
 
 class EventDetailsSheet extends StatefulWidget {
   const EventDetailsSheet({
+    required this.user,
     required this.event,
     required this.onToggleRegistration,
     required this.onCheckIn,
     required this.onCancel,
+    required this.onUpdateLocation,
     required this.onAddToCalendar,
     required this.onExportCalendar,
     required this.onChanged,
     super.key,
   });
 
+  final EventUser user;
   final SportEvent event;
   final Future<String> Function(SportEvent) onToggleRegistration;
   final Future<void> Function(SportEvent, String, bool) onCheckIn;
   final Future<void> Function() onCancel;
+  final Future<SportEvent> Function(SportEvent, LatLng) onUpdateLocation;
   final Future<void> Function(SportEvent) onAddToCalendar;
   final ValueChanged<SportEvent> onExportCalendar;
   final VoidCallback onChanged;
@@ -31,15 +36,22 @@ class EventDetailsSheet extends StatefulWidget {
 }
 
 class _EventDetailsSheetState extends State<EventDetailsSheet> {
-  SportEvent get event => widget.event;
+  late SportEvent _event = widget.event;
+
+  SportEvent get event => _event;
+
+  @override
+  void didUpdateWidget(covariant EventDetailsSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.event.id != widget.event.id) _event = widget.event;
+  }
 
   @override
   Widget build(BuildContext context) {
-    final isAttending = event.attendeeIds.contains(currentDemoUser.id);
-    final isWaiting = event.waitlistIds.contains(currentDemoUser.id);
-    final isCoach =
-        currentDemoUser.isCoach && event.coachId == currentDemoUser.id;
-    final waitlistRank = event.waitlistRank(currentDemoUser.id);
+    final isAttending = event.attendeeIds.contains(widget.user.id);
+    final isWaiting = event.waitlistIds.contains(widget.user.id);
+    final isEventOwner = event.coachId == widget.user.id;
+    final waitlistRank = event.waitlistRank(widget.user.id);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -116,7 +128,13 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
               ),
             ],
             const SizedBox(height: 16),
-            if (isCoach) ...[
+            if (isEventOwner) ...[
+              if (event.mode != EventMode.online)
+                OutlinedButton.icon(
+                  onPressed: _updateLocation,
+                  icon: const Icon(Icons.edit_location_alt_outlined),
+                  label: const Text('Ajuster le point sur la carte'),
+                ),
               OutlinedButton.icon(
                 onPressed: _showParticipants,
                 icon: const Icon(Icons.fact_check_outlined),
@@ -131,44 +149,41 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                 icon: const Icon(Icons.event_busy_outlined),
                 label: const Text('Annuler cet événement'),
               ),
-            ] else ...[
-              FilledButton.icon(
-                onPressed: () async {
-                  final message = await widget.onToggleRegistration(event);
-                  if (!context.mounted) return;
-                  setState(() {});
-                  widget.onChanged(); // rafraîchit la liste derrière la fiche
-                  final confirmed = event.attendeeIds.contains(
-                    currentDemoUser.id,
-                  );
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(message),
-                      action: confirmed
-                          ? SnackBarAction(
-                              label: 'Ajouter à l’agenda',
-                              onPressed: () => widget.onAddToCalendar(event),
-                            )
-                          : null,
-                    ),
-                  );
-                },
-                icon: Icon(
-                  isAttending || isWaiting
-                      ? Icons.event_busy
-                      : Icons.event_available,
-                ),
-                label: Text(
-                  isAttending
-                      ? 'Se désinscrire'
-                      : isWaiting
-                      ? 'Quitter la liste d’attente'
-                      : event.isFull
-                      ? 'Rejoindre la liste d’attente'
-                      : 'S’inscrire · ${event.isFree ? 'Gratuit' : '${event.price.toStringAsFixed(0)} TND'}',
-                ),
-              ),
             ],
+            FilledButton.icon(
+              onPressed: () async {
+                final message = await widget.onToggleRegistration(event);
+                if (!context.mounted) return;
+                setState(() {});
+                widget.onChanged();
+                final confirmed = event.attendeeIds.contains(widget.user.id);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(message),
+                    action: confirmed
+                        ? SnackBarAction(
+                            label: 'Ajouter à l’agenda',
+                            onPressed: () => widget.onAddToCalendar(event),
+                          )
+                        : null,
+                  ),
+                );
+              },
+              icon: Icon(
+                isAttending || isWaiting
+                    ? Icons.event_busy
+                    : Icons.event_available,
+              ),
+              label: Text(
+                isAttending
+                    ? 'Se désinscrire'
+                    : isWaiting
+                    ? 'Quitter la liste d’attente'
+                    : event.isFull
+                    ? 'Rejoindre la liste d’attente'
+                    : 'S’inscrire · ${event.isFree ? 'Gratuit' : '${event.price.toStringAsFixed(0)} TND'}',
+              ),
+            ),
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
@@ -185,6 +200,26 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
           ],
         ),
       ),
+    );
+  }
+
+  Future<void> _updateLocation() async {
+    final selectedPoint = await showModalBottomSheet<LatLng>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => EventLocationPicker(
+        initialPoint: LatLng(event.latitude, event.longitude),
+      ),
+    );
+    if (selectedPoint == null || !mounted) return;
+
+    final updatedEvent = await widget.onUpdateLocation(event, selectedPoint);
+    if (!mounted) return;
+    setState(() => _event = updatedEvent);
+    widget.onChanged();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Position de l’événement mise à jour.')),
     );
   }
 
@@ -207,7 +242,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
             ...event.attendeeIds.map(
               (id) => CheckboxListTile(
                 value: event.checkedInIds.contains(id),
-                title: Text(demoParticipantNames[id] ?? id),
+                title: Text(id),
                 subtitle: const Text('Présence'),
                 controlAffinity: ListTileControlAffinity.leading,
                 onChanged: (checked) async {
@@ -230,7 +265,7 @@ class _EventDetailsSheetState extends State<EventDetailsSheet> {
                     radius: 14,
                     child: Text('${entry.key + 1}'),
                   ),
-                  title: Text(demoParticipantNames[entry.value] ?? entry.value),
+                  title: Text(entry.value),
                 ),
               ),
             ],

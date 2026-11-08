@@ -54,6 +54,21 @@ class EventRepository {
     );
   }
 
+  Future<SportEvent> updateEventCoordinates(
+    SportEvent event, {
+    required double latitude,
+    required double longitude,
+  }) async {
+    final db = await _database.database;
+    await db.update(
+      'events',
+      {'latitude': latitude, 'longitude': longitude},
+      where: 'id = ?',
+      whereArgs: [event.id],
+    );
+    return event.copyWithCoordinates(latitude: latitude, longitude: longitude);
+  }
+
   /// Supprime l'événement et ses inscriptions (ON DELETE CASCADE).
   Future<void> deleteEvent(String eventId) async {
     final db = await _database.database;

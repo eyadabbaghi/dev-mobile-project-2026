@@ -4,11 +4,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
-import 'package:fittrack_ai/events/data/demo_event_data.dart';
 import 'package:fittrack_ai/events/data/event_recommender.dart';
 
+import 'event_test_data.dart';
+
 void main() {
-  final events = createDemoEvents();
+  final events = createTestEvents();
   const profile = RecommendationProfile(
     activityLevel: 'Intermédiaire',
     goals: ['Endurance'],
@@ -23,8 +24,8 @@ void main() {
       final prompt =
           (requestBody['contents'] as List).first['parts'][0]['text'] as String;
       expect(prompt, contains('"activityLevel":"Intermédiaire"'));
-      expect(prompt, isNot(contains(currentDemoUser.id)));
-      expect(prompt, isNot(contains(currentDemoUser.name)));
+      expect(prompt, isNot(contains('private-user-id')));
+      expect(prompt, isNot(contains('Private User Name')));
 
       final recommendationJson = jsonEncode({
         'recommendations': [

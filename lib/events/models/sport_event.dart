@@ -106,6 +106,30 @@ class SportEvent {
     checkedInIds: checkedInIds,
   );
 
+  SportEvent copyWithCoordinates({
+    required double latitude,
+    required double longitude,
+  }) => SportEvent(
+    id: id,
+    title: title,
+    description: description,
+    category: category,
+    dateTime: dateTime,
+    mode: mode,
+    city: city,
+    location: location,
+    imagePath: imagePath,
+    price: price,
+    capacity: capacity,
+    coachId: coachId,
+    coachName: coachName,
+    latitude: latitude,
+    longitude: longitude,
+    attendeeIds: attendeeIds,
+    waitlistIds: waitlistIds,
+    checkedInIds: checkedInIds,
+  );
+
   /// Rang dans la liste d'attente (1 = premier). Retourne 0 si absent de la liste.
   int waitlistRank(String userId) {
     final index = waitlistIds.indexOf(userId);
@@ -166,14 +190,13 @@ class SportEvent {
   }
 }
 
-class EventDemoUser {
-  const EventDemoUser({
+class EventUser {
+  const EventUser({
     required this.id,
     required this.name,
     required this.city,
     required this.latitude,
     required this.longitude,
-    required this.isCoach,
     required this.activityLevel,
     required this.goals,
     required this.interests,
@@ -184,7 +207,6 @@ class EventDemoUser {
   final String city;
   final double latitude;
   final double longitude;
-  final bool isCoach;
   final String activityLevel;
   final List<String> goals;
   final List<EventCategory> interests;
