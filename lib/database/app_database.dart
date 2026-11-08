@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static final AppDatabase instance = AppDatabase._();
-  static const int _schemaVersion = 5; // Bump to v5 for AI Recommendations & Reports
+  static const int _schemaVersion = 6; // Bump to v6 for Meal Templates & Water Intake
   static const String _databaseName = 'fittrack_ai.db';
 
   Database? _database;
@@ -58,6 +58,9 @@ class AppDatabase {
     }
     if (oldVersion < 5) {
       await _createAiAndReportsTables(database);
+    }
+    if (oldVersion < 6) {
+      await _createMealAndWaterJournalTables(database);
     }
   }
 
@@ -268,6 +271,49 @@ class AppDatabase {
     await _createUserTables(database);
     await _createAdvancedTrackingAndGamificationTables(database);
     await _createAiAndReportsTables(database);
+    await _createMealAndWaterJournalTables(database);
+  }
+
+  Future<void> _createMealAndWaterJournalTables(Database database) async {
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS water_intake_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        amount_ml INTEGER NOT NULL CHECK(amount_ml > 0),
+        consumed_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    ''');
+    await database.execute(
+      'CREATE INDEX IF NOT EXISTS water_entries_user_date_idx ON water_intake_entries(user_id, consumed_at)',
+    );
+
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS meal_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        meal_slot TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    ''');
+
+    await database.execute('''
+      CREATE TABLE IF NOT EXISTS meal_template_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        template_id INTEGER NOT NULL,
+        food_name TEXT NOT NULL,
+        brand TEXT NOT NULL DEFAULT '',
+        amount REAL NOT NULL CHECK(amount > 0),
+        unit TEXT NOT NULL CHECK(unit IN ('gram', 'milliliter')),
+        calories REAL NOT NULL CHECK(calories >= 0),
+        protein_grams REAL NOT NULL CHECK(protein_grams >= 0),
+        carbohydrate_grams REAL NOT NULL CHECK(carbohydrate_grams >= 0),
+        fat_grams REAL NOT NULL CHECK(fat_grams >= 0),
+        FOREIGN KEY(template_id) REFERENCES meal_templates(id) ON DELETE CASCADE
+      )
+    ''');
   }
 
   Future<void> close() async {

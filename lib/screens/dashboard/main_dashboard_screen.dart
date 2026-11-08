@@ -4,6 +4,7 @@ import '../../events/models/sport_event.dart';
 import '../../events/screens/events_screen.dart';
 import '../../services/auth_service.dart';
 import '../catalog/food_catalog_screen.dart';
+import '../journal/meal_water_journal_screen.dart';
 import 'user_dashboard_screen.dart';
 
 class MainDashboardScreen extends StatefulWidget {
@@ -14,7 +15,7 @@ class MainDashboardScreen extends StatefulWidget {
 }
 
 class _MainDashboardScreenState extends State<MainDashboardScreen> {
-  int _currentIndex = 0;
+  int _currentIndex = 1; // Default to Module 3 Meal & Water Journal
   late final List<Widget> _screens;
 
   @override
@@ -23,6 +24,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     final user = widget.authService.currentUser!;
     _screens = [
       FoodCatalogScreen(currentUserId: user.id),
+      MealWaterJournalScreen(authService: widget.authService),
       UserDashboardScreen(authService: widget.authService),
       EventsScreen(
         user: EventUser(
@@ -49,13 +51,24 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         selectedItemColor: Theme.of(context).colorScheme.primary,
         unselectedItemColor: Colors.grey,
         backgroundColor: Theme.of(context).colorScheme.surface,
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.restaurant_menu),
+            icon: Icon(Icons.menu_book),
             label: 'Catalogue',
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Événements'),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.restaurant_menu),
+            label: 'Journal',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.person),
+            label: 'Profil',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.event),
+            label: 'Événements',
+          ),
         ],
       ),
     );
