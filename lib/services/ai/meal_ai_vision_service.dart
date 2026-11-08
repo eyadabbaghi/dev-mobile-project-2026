@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:google_generative_ai/google_generative_ai.dart';
 
 import '../../models/food.dart';
@@ -12,17 +13,39 @@ class MealAiVisionService {
 
   final String apiKey;
 
+  static Future<String> getResolvedApiKey([String providedKey = '']) async {
+    if (providedKey.trim().isNotEmpty) return providedKey.trim();
+
+    try {
+      const fromEnv = String.fromEnvironment('GEMINI_API_KEY');
+      if (fromEnv.isNotEmpty) return fromEnv;
+
+      final jsonStr = await rootBundle.loadString('env.json');
+      final data = jsonDecode(jsonStr);
+      if (data is Map<String, dynamic> && data['GEMINI_API_KEY'] != null) {
+        final key = data['GEMINI_API_KEY'].toString().trim();
+        if (key.isNotEmpty) return key;
+      }
+    } catch (_) {
+      // env.json not loaded
+    }
+
+    return '';
+  }
+
   /// Analyzes a meal photo using Gemini Vision or falls back to intelligent candidate estimation (MEA05).
   Future<List<MealFoodEntry>> analyzeMealPhoto({
     required File imageFile,
     required String userId,
     required MealSlot mealSlot,
   }) async {
-    if (apiKey.trim().isNotEmpty) {
+    final effectiveApiKey = await getResolvedApiKey(apiKey);
+
+    if (effectiveApiKey.isNotEmpty) {
       try {
         final model = GenerativeModel(
           model: 'gemini-1.5-flash',
-          apiKey: apiKey.trim(),
+          apiKey: effectiveApiKey,
         );
 
         final imageBytes = await imageFile.readAsBytes();
