@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../community/screens/community_feed_screen.dart';
 import '../../events/models/sport_event.dart';
 import '../../events/screens/events_screen.dart';
 import '../../services/auth_service.dart';
@@ -25,6 +26,7 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
     _screens = [
       FoodCatalogScreen(currentUserId: user.id),
       MealWaterJournalScreen(authService: widget.authService),
+      CommunityFeedScreen(user: user),
       UserDashboardScreen(authService: widget.authService),
       EventsScreen(
         user: EventUser(
@@ -52,6 +54,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
         unselectedItemColor: Colors.grey,
         backgroundColor: Theme.of(context).colorScheme.surface,
         type: BottomNavigationBarType.fixed,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.menu_book),
@@ -60,6 +64,11 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.restaurant_menu),
             label: 'Journal',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.forum_outlined),
+            activeIcon: Icon(Icons.forum),
+            label: 'Publications',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person),
