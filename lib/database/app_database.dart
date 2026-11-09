@@ -7,7 +7,7 @@ class AppDatabase {
   AppDatabase._();
 
   static final AppDatabase instance = AppDatabase._();
-  static const int _schemaVersion = 6; // Bump to v6 for Meal Templates & Water Intake
+  static const int _schemaVersion = 7; // v7 adds the per-user coach mode
   static const String _databaseName = 'fittrack_ai.db';
 
   Database? _database;
@@ -46,7 +46,11 @@ class AppDatabase {
     );
   }
 
-  Future<void> _upgradeSchema(Database database, int oldVersion, int newVersion) async {
+  Future<void> _upgradeSchema(
+    Database database,
+    int oldVersion,
+    int newVersion,
+  ) async {
     if (oldVersion < 3) {
       await database.execute('DROP TABLE IF EXISTS weight_history');
       await database.execute('DROP TABLE IF EXISTS user_goals');
@@ -61,6 +65,11 @@ class AppDatabase {
     }
     if (oldVersion < 6) {
       await _createMealAndWaterJournalTables(database);
+    }
+    if (oldVersion >= 3 && oldVersion < 7) {
+      await database.execute(
+        'ALTER TABLE users ADD COLUMN is_coach INTEGER NOT NULL DEFAULT 0',
+      );
     }
   }
 
@@ -90,11 +99,15 @@ class AppDatabase {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     ''');
-    
-    await database.execute('CREATE INDEX ai_recs_user_idx ON ai_recommendations(user_id)');
+
+    await database.execute(
+      'CREATE INDEX ai_recs_user_idx ON ai_recommendations(user_id)',
+    );
   }
 
-  Future<void> _createAdvancedTrackingAndGamificationTables(Database database) async {
+  Future<void> _createAdvancedTrackingAndGamificationTables(
+    Database database,
+  ) async {
     // Advanced Tracking
     await database.execute('''
       CREATE TABLE body_measurements (
@@ -109,7 +122,7 @@ class AppDatabase {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     ''');
-    
+
     // Gamification - User Stats (XP, Level, Streak)
     await database.execute('''
       CREATE TABLE user_gamification (
@@ -133,7 +146,7 @@ class AppDatabase {
         xp_reward INTEGER NOT NULL
       )
     ''');
-    
+
     // User Unlocked Achievements
     await database.execute('''
       CREATE TABLE user_achievements (
@@ -145,14 +158,44 @@ class AppDatabase {
         FOREIGN KEY(achievement_id) REFERENCES achievements(id) ON DELETE CASCADE
       )
     ''');
-    
+
     // Seed initial achievements
     final batch = database.batch();
-    batch.insert('achievements', {'id': 'first_step', 'title': 'Premier Pas', 'description': 'Enregistrez votre première pesée.', 'icon_name': 'emoji_events', 'xp_reward': 50});
-    batch.insert('achievements', {'id': 'consistency_7', 'title': 'Régulier', 'description': '7 jours consécutifs de suivi.', 'icon_name': 'local_fire_department', 'xp_reward': 150});
-    batch.insert('achievements', {'id': 'dedicated_10', 'title': 'Dédié', 'description': '10 mesures enregistrées.', 'icon_name': 'star', 'xp_reward': 200});
-    batch.insert('achievements', {'id': 'goal_50', 'title': 'Mi-chemin', 'description': '50% de l\'objectif atteint.', 'icon_name': 'timeline', 'xp_reward': 300});
-    batch.insert('achievements', {'id': 'goal_master', 'title': 'Maître de l\'objectif', 'description': 'Objectif atteint !', 'icon_name': 'military_tech', 'xp_reward': 1000});
+    batch.insert('achievements', {
+      'id': 'first_step',
+      'title': 'Premier Pas',
+      'description': 'Enregistrez votre première pesée.',
+      'icon_name': 'emoji_events',
+      'xp_reward': 50,
+    });
+    batch.insert('achievements', {
+      'id': 'consistency_7',
+      'title': 'Régulier',
+      'description': '7 jours consécutifs de suivi.',
+      'icon_name': 'local_fire_department',
+      'xp_reward': 150,
+    });
+    batch.insert('achievements', {
+      'id': 'dedicated_10',
+      'title': 'Dédié',
+      'description': '10 mesures enregistrées.',
+      'icon_name': 'star',
+      'xp_reward': 200,
+    });
+    batch.insert('achievements', {
+      'id': 'goal_50',
+      'title': 'Mi-chemin',
+      'description': '50% de l\'objectif atteint.',
+      'icon_name': 'timeline',
+      'xp_reward': 300,
+    });
+    batch.insert('achievements', {
+      'id': 'goal_master',
+      'title': 'Maître de l\'objectif',
+      'description': 'Objectif atteint !',
+      'icon_name': 'military_tech',
+      'xp_reward': 1000,
+    });
     await batch.commit(noResult: true);
   }
 
@@ -171,6 +214,7 @@ class AppDatabase {
         activity_level TEXT,
         profile_picture_path TEXT,
         is_onboarded INTEGER NOT NULL DEFAULT 0,
+        is_coach INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL
       )
     ''');
@@ -200,8 +244,10 @@ class AppDatabase {
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     ''');
-    
-    await database.execute('CREATE INDEX weight_history_user_idx ON weight_history(user_id)');
+
+    await database.execute(
+      'CREATE INDEX weight_history_user_idx ON weight_history(user_id)',
+    );
   }
 
   Future<void> _createSchema(Database database, int version) async {
@@ -266,7 +312,7 @@ class AppDatabase {
       batch.insert('foods', food, conflictAlgorithm: ConflictAlgorithm.ignore);
     }
     await batch.commit(noResult: true);
-    
+
     // Also create user tables on fresh install
     await _createUserTables(database);
     await _createAdvancedTrackingAndGamificationTables(database);

@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:crypto/crypto.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -48,7 +49,7 @@ class AuthService {
     if (user == null) {
       throw Exception('Aucun compte trouvé avec cet email.');
     }
-    
+
     if (!_verifyPassword(password, user.passwordHash)) {
       throw Exception('Mot de passe incorrect.');
     }
@@ -80,7 +81,7 @@ class AuthService {
     );
 
     await _userRepository.createUserOnly(user);
-    
+
     _currentUser = user;
     await _secureStorage.write(key: _sessionKey, value: user.id);
     return user;
@@ -112,14 +113,16 @@ class AuthService {
     final goal = calculateGoals(updatedUser, goalType, customTargetWeight);
 
     await _userRepository.updateUserAndGoals(updatedUser, goal);
-    
+
     // Add initial weight to history
-    await _userRepository.addOrUpdateWeight(WeightEntry(
-      userId: updatedUser.id,
-      weightKg: initialWeightKg,
-      date: DateTime.now(),
-    ));
-    
+    await _userRepository.addOrUpdateWeight(
+      WeightEntry(
+        userId: updatedUser.id,
+        weightKg: initialWeightKg,
+        date: DateTime.now(),
+      ),
+    );
+
     _currentUser = updatedUser;
     return updatedUser;
   }
@@ -129,17 +132,27 @@ class AuthService {
     await _secureStorage.delete(key: _sessionKey);
   }
 
-  Future<void> changePassword(String currentPassword, String newPassword) async {
+  Future<void> updateCurrentUser(User user) async {
+    await _userRepository.updateUser(user);
+    if (_currentUser?.id == user.id) {
+      _currentUser = user;
+    }
+  }
+
+  Future<void> changePassword(
+    String currentPassword,
+    String newPassword,
+  ) async {
     if (_currentUser == null) throw Exception('Utilisateur non connecté.');
-    
+
     if (!_verifyPassword(currentPassword, _currentUser!.passwordHash)) {
       throw Exception('Le mot de passe actuel est incorrect.');
     }
-    
+
     final updatedUser = _currentUser!.copyWith(
       passwordHash: _hashPassword(newPassword),
     );
-    
+
     await _userRepository.updateUser(updatedUser);
     _currentUser = updatedUser;
   }
@@ -174,7 +187,9 @@ class AuthService {
   Future<void> _checkBiometricPrerequisites() async {
     final isSupported = await _localAuth.isDeviceSupported();
     if (!isSupported) {
-      throw Exception("Cet appareil ne supporte pas la biométrie (Face ID / Touch ID).");
+      throw Exception(
+        "Cet appareil ne supporte pas la biométrie (Face ID / Touch ID).",
+      );
     }
 
     final canCheck = await _localAuth.canCheckBiometrics;
@@ -184,33 +199,39 @@ class AuthService {
       throw Exception(
         "Aucune donnée biométrique n'est configurée.\n\n"
         "Veuillez configurer un code de verrouillage (PIN/Mot de passe) "
-        "et enregistrer votre visage ou empreinte dans les paramètres de votre appareil."
+        "et enregistrer votre visage ou empreinte dans les paramètres de votre appareil.",
       );
     }
   }
 
   Future<void> enableBiometricLogin() async {
     if (_currentUser == null) throw Exception('Utilisateur non connecté.');
-    
+
     await _checkBiometricPrerequisites();
 
     try {
       final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Confirmez votre identité pour activer la connexion biométrique',
+        localizedReason:
+            'Confirmez votre identité pour activer la connexion biométrique',
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
 
       if (authenticated) {
-        await _secureStorage.write(key: _biometricUserIdKey, value: _currentUser!.id);
+        await _secureStorage.write(
+          key: _biometricUserIdKey,
+          value: _currentUser!.id,
+        );
       } else {
         throw Exception('Authentification annulée ou échouée.');
       }
     } catch (e) {
       final eStr = e.toString();
-      if (eStr.contains('noCredentialsSet') || eStr.contains('NotEnrolled') || eStr.contains('PasscodeNotSet')) {
+      if (eStr.contains('noCredentialsSet') ||
+          eStr.contains('NotEnrolled') ||
+          eStr.contains('PasscodeNotSet')) {
         throw Exception(
-          "Veuillez configurer un verrouillage d'écran et la biométrie dans les paramètres de votre appareil."
+          "Veuillez configurer un verrouillage d'écran et la biométrie dans les paramètres de votre appareil.",
         );
       }
       rethrow;
@@ -223,13 +244,15 @@ class AuthService {
 
   Future<User?> loginWithBiometrics() async {
     final storedUserId = await _secureStorage.read(key: _biometricUserIdKey);
-    if (storedUserId == null) throw Exception('La biométrie n\'est pas activée.');
+    if (storedUserId == null)
+      throw Exception('La biométrie n\'est pas activée.');
 
     await _checkBiometricPrerequisites();
 
     try {
       final authenticated = await _localAuth.authenticate(
-        localizedReason: 'Veuillez vous authentifier pour accéder à FitTrack AI',
+        localizedReason:
+            'Veuillez vous authentifier pour accéder à FitTrack AI',
         biometricOnly: true,
         persistAcrossBackgrounding: true,
       );
@@ -238,7 +261,9 @@ class AuthService {
         final user = await _userRepository.getUserById(storedUserId);
         if (user == null) {
           await disableBiometricLogin();
-          throw Exception('Compte introuvable. Veuillez vous reconnecter manuellement.');
+          throw Exception(
+            'Compte introuvable. Veuillez vous reconnecter manuellement.',
+          );
         }
         _currentUser = user;
         await _secureStorage.write(key: _sessionKey, value: user.id);
@@ -248,9 +273,11 @@ class AuthService {
       }
     } catch (e) {
       final eStr = e.toString();
-      if (eStr.contains('noCredentialsSet') || eStr.contains('NotEnrolled') || eStr.contains('PasscodeNotSet')) {
+      if (eStr.contains('noCredentialsSet') ||
+          eStr.contains('NotEnrolled') ||
+          eStr.contains('PasscodeNotSet')) {
         throw Exception(
-          "Veuillez configurer un verrouillage d'écran et la biométrie dans les paramètres de votre appareil."
+          "Veuillez configurer un verrouillage d'écran et la biométrie dans les paramètres de votre appareil.",
         );
       }
       rethrow;
@@ -258,12 +285,20 @@ class AuthService {
   }
 
   // --- GOALS CALCULATION ---
-  UserGoal calculateGoals(User user, String goalType, [double? customTargetWeight]) {
-    if (user.initialWeightKg == null || user.heightCm == null || user.birthDate == null || user.gender == null) {
+  UserGoal calculateGoals(
+    User user,
+    String goalType, [
+    double? customTargetWeight,
+  ]) {
+    if (user.initialWeightKg == null ||
+        user.heightCm == null ||
+        user.birthDate == null ||
+        user.gender == null) {
       throw Exception("Données utilisateur manquantes pour le calcul.");
     }
     // Mifflin-St Jeor
-    double bmr = (10 * user.initialWeightKg!) + (6.25 * user.heightCm!) - (5 * user.age);
+    double bmr =
+        (10 * user.initialWeightKg!) + (6.25 * user.heightCm!) - (5 * user.age);
     if (user.gender!.toUpperCase() == 'M') {
       bmr += 5;
     } else {
@@ -273,9 +308,15 @@ class AuthService {
     // Facteur d'activité
     double activityFactor = 1.2;
     switch (user.activityLevel?.toLowerCase()) {
-      case 'light': activityFactor = 1.375; break;
-      case 'moderate': activityFactor = 1.55; break;
-      case 'intense': activityFactor = 1.725; break;
+      case 'light':
+        activityFactor = 1.375;
+        break;
+      case 'moderate':
+        activityFactor = 1.55;
+        break;
+      case 'intense':
+        activityFactor = 1.725;
+        break;
     }
 
     double tdee = bmr * activityFactor;

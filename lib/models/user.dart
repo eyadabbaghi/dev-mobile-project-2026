@@ -5,12 +5,13 @@ class User {
   final String email;
   final String passwordHash;
   final DateTime? birthDate;
-  final String? gender; 
+  final String? gender;
   final double? heightCm;
   final double? initialWeightKg;
   final String? activityLevel;
   final String? profilePicturePath;
   final bool isOnboarded;
+  final bool isCoach;
   final DateTime createdAt;
 
   const User({
@@ -26,6 +27,7 @@ class User {
     this.activityLevel,
     this.profilePicturePath,
     required this.isOnboarded,
+    this.isCoach = false,
     required this.createdAt,
   });
 
@@ -52,8 +54,10 @@ class User {
       if (heightCm != null) 'height_cm': heightCm,
       if (initialWeightKg != null) 'initial_weight_kg': initialWeightKg,
       if (activityLevel != null) 'activity_level': activityLevel,
-      if (profilePicturePath != null) 'profile_picture_path': profilePicturePath,
+      if (profilePicturePath != null)
+        'profile_picture_path': profilePicturePath,
       'is_onboarded': isOnboarded ? 1 : 0,
+      'is_coach': isCoach ? 1 : 0,
       'created_at': createdAt.toIso8601String(),
     };
   }
@@ -65,13 +69,20 @@ class User {
       lastName: map['last_name'] as String,
       email: map['email'] as String,
       passwordHash: map['password_hash'] as String,
-      birthDate: map['birth_date'] != null ? DateTime.parse(map['birth_date'] as String) : null,
+      birthDate: map['birth_date'] != null
+          ? DateTime.parse(map['birth_date'] as String)
+          : null,
       gender: map['gender'] as String?,
-      heightCm: map['height_cm'] != null ? (map['height_cm'] as num).toDouble() : null,
-      initialWeightKg: map['initial_weight_kg'] != null ? (map['initial_weight_kg'] as num).toDouble() : null,
+      heightCm: map['height_cm'] != null
+          ? (map['height_cm'] as num).toDouble()
+          : null,
+      initialWeightKg: map['initial_weight_kg'] != null
+          ? (map['initial_weight_kg'] as num).toDouble()
+          : null,
       activityLevel: map['activity_level'] as String?,
       profilePicturePath: map['profile_picture_path'] as String?,
       isOnboarded: (map['is_onboarded'] as int) == 1,
+      isCoach: (map['is_coach'] as int? ?? 0) == 1,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
@@ -89,6 +100,7 @@ class User {
     String? profilePicturePath,
     bool clearProfilePicture = false,
     bool? isOnboarded,
+    bool? isCoach,
   }) {
     return User(
       id: id,
@@ -101,8 +113,11 @@ class User {
       heightCm: heightCm ?? this.heightCm,
       initialWeightKg: initialWeightKg ?? this.initialWeightKg,
       activityLevel: activityLevel ?? this.activityLevel,
-      profilePicturePath: clearProfilePicture ? null : (profilePicturePath ?? this.profilePicturePath),
+      profilePicturePath: clearProfilePicture
+          ? null
+          : (profilePicturePath ?? this.profilePicturePath),
       isOnboarded: isOnboarded ?? this.isOnboarded,
+      isCoach: isCoach ?? this.isCoach,
       createdAt: createdAt,
     );
   }

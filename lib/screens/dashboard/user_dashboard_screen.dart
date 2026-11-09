@@ -18,8 +18,13 @@ import '../ai/ai_recommendations_screen.dart';
 
 class UserDashboardScreen extends StatefulWidget {
   final AuthService authService;
+  final ValueChanged<bool>? onCoachModeChanged;
 
-  const UserDashboardScreen({super.key, required this.authService});
+  const UserDashboardScreen({
+    super.key,
+    required this.authService,
+    this.onCoachModeChanged,
+  });
 
   @override
   State<UserDashboardScreen> createState() => _UserDashboardScreenState();
@@ -27,11 +32,12 @@ class UserDashboardScreen extends StatefulWidget {
 
 class _UserDashboardScreenState extends State<UserDashboardScreen> {
   final UserRepository _userRepo = UserRepository();
-  
+
   User? _user;
   UserGoal? _goal;
   List<WeightEntry> _weightHistory = [];
   bool _isLoading = true;
+  bool _isSavingCoachMode = false;
 
   @override
   void initState() {
@@ -44,7 +50,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
     if (user != null) {
       final goal = await _userRepo.getUserGoal(user.id);
       final history = await _userRepo.getWeightHistory(user.id);
-      
+
       if (mounted) {
         setState(() {
           _user = user;
@@ -53,6 +59,31 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _toggleCoachMode(bool value) async {
+    final user = _user;
+    if (user == null || _isSavingCoachMode) return;
+
+    setState(() => _isSavingCoachMode = true);
+    try {
+      final updatedUser = user.copyWith(isCoach: value);
+      await widget.authService.updateCurrentUser(updatedUser);
+      if (!mounted) return;
+      setState(() {
+        _user = updatedUser;
+        _isSavingCoachMode = false;
+      });
+      widget.onCoachModeChanged?.call(value);
+    } on Exception catch (error) {
+      if (!mounted) return;
+      setState(() => _isSavingCoachMode = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Impossible de modifier le mode Coach : $error'),
+        ),
+      );
     }
   }
 
@@ -70,16 +101,23 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           child: TextFormField(
             controller: controller,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Poids (kg)', suffixText: 'kg'),
+            decoration: const InputDecoration(
+              labelText: 'Poids (kg)',
+              suffixText: 'kg',
+            ),
             validator: Validators.validateWeight,
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Annuler')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Annuler'),
+          ),
           FilledButton(
             onPressed: () {
               if (formKey.currentState!.validate()) {
-                Navigator.of(ctx).pop(double.parse(controller.text.replaceAll(',', '.')));
+                Navigator.of(ctx)
+                    .pop(double.parse(controller.text.replaceAll(',', '.')));
               }
             },
             child: const Text('Enregistrer'),
@@ -90,26 +128,29 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
     if (result != null && _user != null) {
       setState(() => _isLoading = true);
-      
+
       try {
         final entry = WeightEntry(
           userId: _user!.id,
           weightKg: result,
           date: DateTime.now(),
         );
-        
+
         await _userRepo.addOrUpdateWeight(entry);
-        
+
         final updatedUser = _user!.copyWith(initialWeightKg: result);
-        final newGoal = widget.authService.calculateGoals(updatedUser, _goal!.goalType);
-        
+        final newGoal = widget.authService.calculateGoals(
+          updatedUser,
+          _goal!.goalType,
+        );
+
         await _userRepo.updateUserAndGoals(updatedUser, newGoal);
         await widget.authService.initializeSession();
-        
+
         // Trigger Gamification Engine
         final AchievementService achService = AchievementService();
         final unlocked = await achService.checkActionTriggers(_user!.id);
-        
+
         await _loadData();
 
         if (mounted && unlocked.isNotEmpty) {
@@ -120,10 +161,15 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                   children: [
                     const Icon(Icons.stars, color: Colors.amber),
                     const SizedBox(width: 8),
-                    Expanded(child: Text('Succès débloqué : ${a.title} (+${a.xpReward} XP)')),
+                    Expanded(
+                      child: Text(
+                        'Succès débloqué : ${a.title} (+${a.xpReward} XP)',
+                      ),
+                    ),
                   ],
                 ),
-                backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                backgroundColor: Theme.of(context).colorScheme.primary
+                    .withValues(alpha: 0.8),
                 duration: const Duration(seconds: 4),
               ),
             );
@@ -142,17 +188,25 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         title: const Text('Déconnexion'),
         content: const Text('Voulez-vous vraiment vous déconnecter ?'),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Annuler')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Déconnexion')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Déconnexion'),
+          ),
         ],
       ),
     );
     if (confirm != true) return;
-    
+
     await widget.authService.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => WelcomeScreen(authService: widget.authService)),
+      MaterialPageRoute(
+        builder: (_) => WelcomeScreen(authService: widget.authService),
+      ),
       (route) => false,
     );
   }
@@ -169,9 +223,11 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
     double progress = 0.0;
     if (_goal!.goalType == 'weight_loss') {
-      progress = (initialWeight - currentWeight) / (initialWeight - targetWeight);
+      progress =
+          (initialWeight - currentWeight) / (initialWeight - targetWeight);
     } else if (_goal!.goalType == 'weight_gain') {
-      progress = (currentWeight - initialWeight) / (targetWeight - initialWeight);
+      progress =
+          (currentWeight - initialWeight) / (targetWeight - initialWeight);
     }
 
     return progress.clamp(0.0, 1.0);
@@ -200,6 +256,23 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildWelcomeSection(),
+              const SizedBox(height: 16),
+              Card(
+                margin: EdgeInsets.zero,
+                child: SwitchListTile(
+                  key: const ValueKey('coach-mode-switch'),
+                  value: _user!.isCoach,
+                  onChanged: _isSavingCoachMode ? null : _toggleCoachMode,
+                  title: const Text(
+                    'Mode Coach',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: const Text(
+                    'Activer les fonctions d’organisation d’événements.',
+                  ),
+                  secondary: const Icon(Icons.sports),
+                ),
+              ),
               const SizedBox(height: 24),
               _buildPhysicalStats(),
               const SizedBox(height: 24),
@@ -226,7 +299,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           userId: _user!.id,
           radius: 35,
           onImageChanged: (path) async {
-            final updatedUser = _user!.copyWith(profilePicturePath: path, clearProfilePicture: path == null);
+            final updatedUser = _user!.copyWith(
+              profilePicturePath: path,
+              clearProfilePicture: path == null,
+            );
             await _userRepo.updateUser(updatedUser);
             await widget.authService.initializeSession();
             _loadData();
@@ -239,7 +315,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             children: [
               Text(
                 'Bonjour, ${_user!.firstName}',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
                 DateFormat.yMMMMd('fr_FR').format(DateTime.now()),
@@ -250,10 +329,15 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         ),
         IconButton(
           icon: const Icon(Icons.edit),
-          style: IconButton.styleFrom(backgroundColor: Theme.of(context).colorScheme.surface),
+          style: IconButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.surface,
+          ),
           onPressed: () async {
             final result = await Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => EditProfileScreen(authService: widget.authService))
+              MaterialPageRoute(
+                builder: (_) =>
+                    EditProfileScreen(authService: widget.authService),
+              ),
             );
             if (result == true) _loadData();
           },
@@ -263,15 +347,32 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   }
 
   Widget _buildPhysicalStats() {
-    final bmi = (_user!.initialWeightKg! / ((_user!.heightCm! / 100) * (_user!.heightCm! / 100))).toStringAsFixed(1);
-    
+    final bmi =
+        (_user!.initialWeightKg! /
+                ((_user!.heightCm! / 100) * (_user!.heightCm! / 100)))
+            .toStringAsFixed(1);
+
     return Row(
       children: [
-        Expanded(child: _buildStatMiniCard('Poids', '${_user!.initialWeightKg} kg', Icons.scale)),
+        Expanded(
+          child: _buildStatMiniCard(
+            'Poids',
+            '${_user!.initialWeightKg} kg',
+            Icons.scale,
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatMiniCard('Taille', '${_user!.heightCm} cm', Icons.height)),
+        Expanded(
+          child: _buildStatMiniCard(
+            'Taille',
+            '${_user!.heightCm} cm',
+            Icons.height,
+          ),
+        ),
         const SizedBox(width: 12),
-        Expanded(child: _buildStatMiniCard('IMC', bmi, Icons.monitor_weight_outlined)),
+        Expanded(
+          child: _buildStatMiniCard('IMC', bmi, Icons.monitor_weight_outlined),
+        ),
       ],
     );
   }
@@ -279,15 +380,24 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
   Widget _buildStatMiniCard(String title, String value, IconData icon) {
     return Card(
       margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Theme.of(context).dividerColor)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).dividerColor),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 8.0),
         child: Column(
           children: [
             Icon(icon, color: Theme.of(context).colorScheme.primary, size: 24),
             const SizedBox(height: 8),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Text(
+              title,
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
         ),
       ),
@@ -296,7 +406,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Widget _buildFitnessGoal() {
     if (_goal == null) return const SizedBox.shrink();
-    
+
     final progress = _calculateProgress();
     String goalText = 'Maintien du poids';
     if (_goal!.goalType == 'weight_loss') goalText = 'Perte de poids';
@@ -312,11 +422,28 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Objectif Actuel', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Objectif Actuel',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
-                  child: Text(goalText, style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold, fontSize: 12)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary
+                        .withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    goalText,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -324,8 +451,15 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildGoalLabel('Départ', '${_weightHistory.isNotEmpty ? _weightHistory.first.weightKg : _user!.initialWeightKg} kg'),
-                _buildGoalLabel('Actuel', '${_user!.initialWeightKg} kg', isHighlight: true),
+                _buildGoalLabel(
+                  'Départ',
+                  '${_weightHistory.isNotEmpty ? _weightHistory.first.weightKg : _user!.initialWeightKg} kg',
+                ),
+                _buildGoalLabel(
+                  'Actuel',
+                  '${_user!.initialWeightKg} kg',
+                  isHighlight: true,
+                ),
                 _buildGoalLabel('Cible', '${_goal!.targetWeightKg} kg'),
               ],
             ),
@@ -340,23 +474,33 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
               ),
             ),
             const SizedBox(height: 8),
-            Text('${(progress * 100).toStringAsFixed(1)}% accompli', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(
+              '${(progress * 100).toStringAsFixed(1)}% accompli',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildGoalLabel(String label, String value, {bool isHighlight = false}) {
+  Widget _buildGoalLabel(
+    String label,
+    String value, {
+    bool isHighlight = false,
+  }) {
     return Column(
       children: [
         Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 4),
-        Text(value, style: TextStyle(
-          fontWeight: FontWeight.bold, 
-          fontSize: 16,
-          color: isHighlight ? Theme.of(context).colorScheme.primary : null
-        )),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+            color: isHighlight ? Theme.of(context).colorScheme.primary : null,
+          ),
+        ),
       ],
     );
   }
@@ -368,7 +512,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           child: OutlinedButton.icon(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => BodyTrackingScreen(authService: widget.authService))
+                MaterialPageRoute(
+                  builder: (_) =>
+                      BodyTrackingScreen(authService: widget.authService),
+                ),
               );
             },
             icon: const Icon(Icons.straighten, size: 16),
@@ -380,7 +527,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           child: OutlinedButton.icon(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AchievementsScreen(authService: widget.authService))
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AchievementsScreen(authService: widget.authService),
+                ),
               );
             },
             icon: const Icon(Icons.emoji_events, size: 16),
@@ -392,7 +542,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
           child: OutlinedButton.icon(
             onPressed: () {
               Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AiRecommendationsScreen(authService: widget.authService))
+                MaterialPageRoute(
+                  builder: (_) =>
+                      AiRecommendationsScreen(authService: widget.authService),
+                ),
               );
             },
             icon: const Icon(Icons.auto_awesome, size: 16),
@@ -414,7 +567,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
     for (int i = 0; i < _weightHistory.length; i++) {
       final entry = _weightHistory[i];
-      // Utiliser l'index comme X, ou le timestamp si on préfère. 
+      // Utiliser l'index comme X, ou le timestamp si on préfère.
       // Pour faire simple et espacé équitablement, utilisons l'index.
       final x = i.toDouble();
       final y = entry.weightKg;
@@ -443,12 +596,18 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Suivi du Poids', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                const Text(
+                  'Suivi du Poids',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 OutlinedButton.icon(
-                  onPressed: _showAddWeightDialog, 
-                  icon: const Icon(Icons.add, size: 16), 
+                  onPressed: _showAddWeightDialog,
+                  icon: const Icon(Icons.add, size: 16),
                   label: const Text('Pesée', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(0, 32), padding: const EdgeInsets.symmetric(horizontal: 12)),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                  ),
                 ),
               ],
             ),
@@ -459,17 +618,30 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                 LineChartData(
                   gridData: const FlGridData(show: false),
                   titlesData: FlTitlesData(
-                    rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                    topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
                     bottomTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
-                          if (value % 1 != 0 || value < 0 || value >= _weightHistory.length) return const SizedBox.shrink();
+                          if (value % 1 != 0 ||
+                              value < 0 ||
+                              value >= _weightHistory.length)
+                            return const SizedBox.shrink();
                           final date = _weightHistory[value.toInt()].date;
                           return Padding(
                             padding: const EdgeInsets.only(top: 8.0),
-                            child: Text('${date.day}/${date.month}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                            child: Text(
+                              '${date.day}/${date.month}',
+                              style: const TextStyle(
+                                color: Colors.grey,
+                                fontSize: 10,
+                              ),
+                            ),
                           );
                         },
                       ),
@@ -490,7 +662,8 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
                       dotData: const FlDotData(show: true),
                       belowBarData: BarAreaData(
                         show: true,
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                        color: Theme.of(context).colorScheme.primary
+                            .withOpacity(0.1),
                       ),
                     ),
                   ],
@@ -505,7 +678,7 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
 
   Widget _buildNutritionTargets() {
     if (_goal == null) return const SizedBox.shrink();
-    
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -513,14 +686,29 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Objectifs Journaliers', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text(
+              'Objectifs Journaliers',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _buildMacroCircle('Kcal', _goal!.dailyCalories.toString(), Colors.orange),
-                _buildMacroCircle('Prot.', '${_goal!.proteinGrams}g', Colors.redAccent),
-                _buildMacroCircle('Gluc.', '${_goal!.carbsGrams}g', Colors.blueAccent),
+                _buildMacroCircle(
+                  'Kcal',
+                  _goal!.dailyCalories.toString(),
+                  Colors.orange,
+                ),
+                _buildMacroCircle(
+                  'Prot.',
+                  '${_goal!.proteinGrams}g',
+                  Colors.redAccent,
+                ),
+                _buildMacroCircle(
+                  'Gluc.',
+                  '${_goal!.carbsGrams}g',
+                  Colors.blueAccent,
+                ),
                 _buildMacroCircle('Lip.', '${_goal!.fatGrams}g', Colors.amber),
               ],
             ),
@@ -541,7 +729,10 @@ class _UserDashboardScreenState extends State<UserDashboardScreen> {
             border: Border.all(color: color.withOpacity(0.5), width: 4),
           ),
           child: Center(
-            child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
           ),
         ),
         const SizedBox(height: 8),

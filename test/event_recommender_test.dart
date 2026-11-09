@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -5,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:fittrack_ai/events/data/event_recommender.dart';
+import 'package:fittrack_ai/events/models/sport_event.dart';
 
 import 'event_test_data.dart';
 
@@ -95,5 +97,35 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('converts socket failures into a recommendation error', () async {
+    final recommender = EventRecommender(
+      apiKey: 'test-key',
+      client: MockClient((_) async => throw const SocketException('offline')),
+    );
+
+    await expectLater(
+      recommender.recommend(profile: profile, events: events),
+      throwsA(
+        isA<EventRecommendationException>().having(
+          (error) => error.message,
+          'message',
+          contains('Connexion'),
+        ),
+      ),
+    );
+  });
+
+  test('builds local recommendations when no AI result is available', () {
+    final result = buildLocalEventRecommendations(
+      events: events,
+      interests: [EventCategory.running],
+    );
+
+    expect(result, hasLength(3));
+    expect(result.first.event.id, events[0].id);
+    expect(result.first.reason, 'Correspond à tes centres d’intérêt.');
+    expect(result[1].event.id, events[4].id);
   });
 }

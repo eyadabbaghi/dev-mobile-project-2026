@@ -200,6 +200,7 @@ class EventUser {
     required this.activityLevel,
     required this.goals,
     required this.interests,
+    this.isCoach = false,
   });
 
   final String id;
@@ -210,4 +211,5 @@ class EventUser {
   final String activityLevel;
   final List<String> goals;
   final List<EventCategory> interests;
+  final bool isCoach;
 }

@@ -14,9 +14,16 @@ import '../widgets/event_details_sheet.dart';
 import '../widgets/events_map_view.dart';
 
 class EventsScreen extends StatefulWidget {
-  const EventsScreen({required this.user, super.key});
+  const EventsScreen({
+    required this.user,
+    this.repository,
+    this.recommender,
+    super.key,
+  });
 
   final EventUser user;
+  final EventRepository? repository;
+  final EventRecommender? recommender;
 
   @override
   State<EventsScreen> createState() => _EventsScreenState();
@@ -24,8 +31,10 @@ class EventsScreen extends StatefulWidget {
 
 class _EventsScreenState extends State<EventsScreen> {
   final TextEditingController _searchController = TextEditingController();
-  final EventRepository _repository = EventRepository();
-  final EventRecommender _recommender = EventRecommender();
+  late final EventRepository _repository =
+      widget.repository ?? EventRepository();
+  late final EventRecommender _recommender =
+      widget.recommender ?? EventRecommender();
   List<SportEvent> _events = [];
   List<EventRecommendation> _recommendations = [];
   bool _loading = true;
@@ -113,8 +122,14 @@ class _EventsScreenState extends State<EventsScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _recommendations = recommendations;
-        _recommendationsFromAi = true;
+        if (recommendations.isEmpty) {
+          _recommendations = _fallbackRecommendations;
+          _recommendationsFromAi = false;
+          _recommendationError = 'Gemini n’a proposé aucun événement. Suggestions locales affichées.';
+        } else {
+          _recommendations = recommendations;
+          _recommendationsFromAi = true;
+        }
       });
     } on EventRecommendationException catch (error) {
       if (!mounted) return;
@@ -138,31 +153,10 @@ class _EventsScreenState extends State<EventsScreen> {
   }
 
   List<EventRecommendation> get _fallbackRecommendations {
-    final upcomingEvents =
-        _events
-            .where((event) => event.dateTime.isAfter(DateTime.now()))
-            .toList()
-          ..sort((first, second) {
-            final firstMatches = widget.user.interests.contains(first.category)
-                ? 0
-                : 1;
-            final secondMatches =
-                widget.user.interests.contains(second.category) ? 0 : 1;
-            final interestOrder = firstMatches.compareTo(secondMatches);
-            return interestOrder != 0
-                ? interestOrder
-                : first.dateTime.compareTo(second.dateTime);
-          });
-
-    return upcomingEvents.take(3).map((event) {
-      final matchesInterest = widget.user.interests.contains(event.category);
-      return EventRecommendation(
-        event: event,
-        reason: matchesInterest
-            ? 'Correspond à tes centres d’intérêt.'
-            : 'Événement à venir à ${event.city}.',
-      );
-    }).toList();
+    return buildLocalEventRecommendations(
+      events: _events,
+      interests: widget.user.interests,
+    );
   }
 
   List<EventRecommendation> _recommendationsFor(
@@ -207,12 +201,13 @@ class _EventsScreenState extends State<EventsScreen> {
                     ],
                   ),
                 ),
-                FilledButton.icon(
-                  key: const ValueKey('create-event-button'),
-                  onPressed: _createEvent,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Créer'),
-                ),
+                if (widget.user.isCoach)
+                  FilledButton.icon(
+                    key: const ValueKey('create-event-button'),
+                    onPressed: _createEvent,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Créer'),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -593,6 +588,7 @@ class _EventsScreenState extends State<EventsScreen> {
   );
 
   Future<void> _createEvent() async {
+    if (!widget.user.isCoach) return;
     final event = await showModalBottomSheet<SportEvent>(
       context: context,
       isScrollControlled: true,

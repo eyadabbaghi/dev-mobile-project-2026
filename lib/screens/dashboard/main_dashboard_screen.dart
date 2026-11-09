@@ -27,20 +27,33 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
       FoodCatalogScreen(currentUserId: user.id),
       MealWaterJournalScreen(authService: widget.authService),
       CommunityFeedScreen(user: user),
-      UserDashboardScreen(authService: widget.authService),
-      EventsScreen(
-        user: EventUser(
-          id: user.id,
-          name: '${user.firstName} ${user.lastName}',
-          city: 'Tunis',
-          latitude: 36.8065,
-          longitude: 10.1815,
-          activityLevel: user.activityLevel ?? 'Non renseigné',
-          goals: const [],
-          interests: const [],
-        ),
+      UserDashboardScreen(
+        authService: widget.authService,
+        onCoachModeChanged: _updateCoachMode,
       ),
+      _buildEventsScreen(user.isCoach),
     ];
+  }
+
+  EventsScreen _buildEventsScreen(bool isCoach) {
+    final user = widget.authService.currentUser!;
+    return EventsScreen(
+      user: EventUser(
+        id: user.id,
+        name: '${user.firstName} ${user.lastName}',
+        city: 'Tunis',
+        latitude: 36.8065,
+        longitude: 10.1815,
+        activityLevel: user.activityLevel ?? 'Non renseigné',
+        goals: const [],
+        interests: const [],
+        isCoach: isCoach,
+      ),
+    );
+  }
+
+  void _updateCoachMode(bool isCoach) {
+    setState(() => _screens[4] = _buildEventsScreen(isCoach));
   }
 
   @override
@@ -70,14 +83,8 @@ class _MainDashboardScreenState extends State<MainDashboardScreen> {
             activeIcon: Icon(Icons.forum),
             label: 'Publications',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.event),
-            label: 'Événements',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
+          BottomNavigationBarItem(icon: Icon(Icons.event), label: 'Événements'),
         ],
       ),
     );

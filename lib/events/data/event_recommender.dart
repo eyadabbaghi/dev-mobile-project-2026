@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 
@@ -35,6 +36,35 @@ class EventRecommendation {
   final String reason;
 }
 
+List<EventRecommendation> buildLocalEventRecommendations({
+  required List<SportEvent> events,
+  required List<EventCategory> interests,
+  DateTime? now,
+}) {
+  final upcomingEvents =
+      events
+          .where((event) => event.dateTime.isAfter(now ?? DateTime.now()))
+          .toList()
+        ..sort((first, second) {
+          final firstMatches = interests.contains(first.category) ? 0 : 1;
+          final secondMatches = interests.contains(second.category) ? 0 : 1;
+          final interestOrder = firstMatches.compareTo(secondMatches);
+          return interestOrder != 0
+              ? interestOrder
+              : first.dateTime.compareTo(second.dateTime);
+        });
+
+  return upcomingEvents.take(3).map((event) {
+    final matchesInterest = interests.contains(event.category);
+    return EventRecommendation(
+      event: event,
+      reason: matchesInterest
+          ? 'Correspond à tes centres d’intérêt.'
+          : 'Événement à venir à ${event.city}.',
+    );
+  }).toList();
+}
+
 class EventRecommendationException implements Exception {
   const EventRecommendationException(this.message);
 
@@ -51,7 +81,7 @@ class EventRecommender {
       _ownsClient = client == null;
 
   static const model = 'gemini-3.6-flash';
-  static const _timeout = Duration(seconds: 10);
+  static const _timeout = Duration(seconds: 30);
   static const _maxRecommendations = 3;
 
   final String _apiKey;
@@ -129,6 +159,10 @@ ${jsonEncode(payload)}
         'Gemini ne répond pas pour le moment (délai dépassé).',
       );
     } on http.ClientException {
+      throw const EventRecommendationException(
+        'Connexion à Gemini impossible. Vérifie ta connexion Internet.',
+      );
+    } on IOException {
       throw const EventRecommendationException(
         'Connexion à Gemini impossible. Vérifie ta connexion Internet.',
       );
